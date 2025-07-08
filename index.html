@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đấu La Đại Lục: Khởi Nguyên</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+          "react/": "https://esm.sh/react@^19.1.0/",
+          "react": "https://esm.sh/react@^19.1.0",
+          "@google/genai": "https://esm.sh/@google/genai@^1.8.0"
+        }
+      }
+    </script>
+    <style>
+      /* Đặt lại các giá trị mặc định và thiết lập font chữ cơ bản */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: 'Times New Roman', Times, serif;
+        background-color: #0f172a; /* slate-900: Màu nền tối hơn */
+      }
+
+      /* Container cho nền, nằm cố định phía sau tất cả */
+      #background-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1; /* Đảm bảo nó nằm sau #root */
+      }
+
+      /* Hình nền, sẽ bao phủ toàn bộ container */
+      #background-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* Tương đương với background-size: cover */
+      }
+
+      /* Lớp phủ tối, nằm trên hình nền nhưng dưới nội dung */
+      #background-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(15, 23, 42, 0.88); /* Lớp phủ màu slate-900 */
+      }
+
+      /* Vùng chứa ứng dụng React */
+      #root {
+        min-height: 100vh;
+        color: #e2e8f0; /* text-slate-200 */
+        position: relative;
+        isolation: isolate; /* Tạo một bối cảnh xếp chồng mới để nội dung không bị chìm */
+      }
+    </style>
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <!-- Lớp nền và lớp phủ -->
+    <div id="background-container">
+      <img
+        id="background-image"
+        src="https://i.imgur.com/uG7tH1b.jpeg"
+        alt="Bức tranh thủy mặc núi non và sương khói"
+      />
+      <div id="background-overlay"></div>
+    </div>
+
+    <!-- Nơi ứng dụng React sẽ được render -->
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
