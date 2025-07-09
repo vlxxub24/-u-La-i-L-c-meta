@@ -61,18 +61,26 @@ const GAME_SYSTEM_INSTRUCTION = `Bạn là một Game Master (GM) chuyên nghi�
   - TUYỆT ĐỐI không sử dụng ký tự gạch chéo ngược (\\) cho bất kỳ mục đích nào khác ngoài việc thoát dấu ngoặc kép hoặc các ký tự đặc biệt của JSON (như \\n, \\t).`;
 
 
-let ai: GoogleGenAI;
-try {
-    ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-} catch (error) {
-    console.error("Failed to initialize GoogleGenAI. Is API_KEY set?", error);
-    // We can't proceed without AI. We'll throw errors in the service methods.
+let ai: GoogleGenAI | null = null;
+
+export function initializeGemini(apiKey: string) {
+    if (!apiKey || apiKey.trim() === '') {
+        console.warn("Attempted to initialize Gemini with an empty API key. AI service will be disabled.");
+        ai = null;
+        return;
+    }
+    try {
+        ai = new GoogleGenAI({ apiKey });
+    } catch (error) {
+        console.error("Failed to initialize GoogleGenAI. The API Key might be invalid.", error);
+        ai = null;
+    }
 }
 
 
 async function _generate(prompt: string, systemInstruction: string, expectJson: boolean): Promise<string> {
     if (!ai) {
-        throw new Error("Dịch vụ AI chưa được khởi tạo. Vui lòng kiểm tra cấu hình API Key.");
+        throw new Error("Dịch vụ AI chưa được khởi tạo. Vui lòng kiểm tra cấu hình API Key trong Cài đặt.");
     }
      try {
       const response = await ai.models.generateContent({
@@ -98,13 +106,13 @@ async function _generate(prompt: string, systemInstruction: string, expectJson: 
       return text;
     } catch (error) {
       console.error("Error generating content from Gemini:", error);
-      throw new Error("Không thể nhận phản hồi từ AI. Vui lòng thử lại sau.");
+      throw new Error("Không thể nhận phản hồi từ AI. Vui lòng kiểm tra API Key và thử lại sau.");
     }
 }
 
 async function getGameUpdate(prompt: string, matureInstructions?: string): Promise<{ narrative: string; choices: Choice[]; characterUpdate?: Partial<Character> }> {
     if (!ai) {
-        throw new Error("Dịch vụ AI chưa được khởi tạo. Vui lòng kiểm tra cấu hình API Key.");
+        throw new Error("Dịch vụ AI chưa được khởi tạo. Vui lòng kiểm tra cấu hình API Key trong Cài đặt.");
     }
     try {
       let systemInstruction = GAME_SYSTEM_INSTRUCTION;
@@ -150,14 +158,13 @@ async function getGameUpdate(prompt: string, matureInstructions?: string): Promi
       if (error instanceof SyntaxError) {
         throw new Error(`Lỗi phân tích JSON từ AI. Phản hồi của AI có thể không hợp lệ. Chi tiết: ${error.message}`);
       }
-      throw new Error("Không thể nhận cập nhật câu chuyện từ AI.");
+      throw new Error("Không thể nhận cập nhật câu chuyện từ AI. Vui lòng kiểm tra cấu hình API Key trong Cài đặt.");
     }
 }
 
 
 export const geminiService = {
     getSuggestion: (prompt: string, expectJson: boolean = false): Promise<string> => {
-        if (!ai) return Promise.reject(new Error("Dịch vụ AI chưa được khởi tạo."));
         return _generate(prompt, CREATION_SYSTEM_INSTRUCTION, expectJson);
     },
     async getCharacterSuggestion(races: any[], origins: any[]): Promise<any> {

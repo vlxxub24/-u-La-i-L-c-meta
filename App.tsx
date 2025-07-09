@@ -12,12 +12,15 @@ import { Cog6ToothIcon } from './components/icons/Cog6ToothIcon';
 import { MATURE_CONTENT_OPTIONS } from './data/matureContent';
 import DocumentArrowDownIcon from './components/icons/DocumentArrowDownIcon';
 import TrashIcon from './components/icons/TrashIcon';
+import { initializeGemini } from './services/geminiService';
 
 
 // --- HELPER COMPONENTS ---
 const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ onClose, onSave }) => {
-    const [status, setStatus] = useState<{type: 'idle' | 'success', message: string}>({type: 'idle', message: ''});
+    const [status, setStatus] = useState<{type: 'idle' | 'success' | 'error', message: string}>({type: 'idle', message: ''});
     const [selectedMatureIds, setSelectedMatureIds] = useState<string[]>([]);
+    const [apiKeyMode, setApiKeyMode] = useState<'default' | 'personal'>('default');
+    const [personalApiKey, setPersonalApiKey] = useState('');
 
     useEffect(() => {
         try {
@@ -25,8 +28,12 @@ const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ 
             if (savedMatureSettings) {
                 setSelectedMatureIds(JSON.parse(savedMatureSettings));
             }
+            const savedApiKeyMode = localStorage.getItem('dl_api_key_mode') as 'default' | 'personal' || 'default';
+            const savedPersonalApiKey = localStorage.getItem('dl_personal_api_key') || '';
+            setApiKeyMode(savedApiKeyMode);
+            setPersonalApiKey(savedPersonalApiKey);
         } catch (e) {
-            console.error("Failed to load mature settings from localStorage", e);
+            console.error("Failed to load settings from localStorage", e);
         }
     }, []);
     
@@ -41,17 +48,22 @@ const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ 
     };
 
     const handleSave = () => {
-        // Save mature settings
         try {
+            // Save mature settings
             localStorage.setItem('dl_mature_settings', JSON.stringify(selectedMatureIds));
-            setStatus({type: 'success', message: 'Cài đặt nội dung đã được lưu!'});
-            onSave(); // Notify parent component that settings have changed
+            
+            // Save API Key settings
+            localStorage.setItem('dl_api_key_mode', apiKeyMode);
+            localStorage.setItem('dl_personal_api_key', personalApiKey);
+
+            setStatus({type: 'success', message: 'Cài đặt đã được lưu!'});
+            onSave(); // Notify parent to re-initialize AI and re-render
             setTimeout(() => {
                 setStatus({type: 'idle', message: ''});
             }, 2000);
         } catch(e) {
-            console.error("Failed to save mature settings to localStorage", e);
-             setStatus({type: 'idle', message: 'Lưu cài đặt thất bại.'});
+            console.error("Failed to save settings to localStorage", e);
+             setStatus({type: 'error', message: 'Lưu cài đặt thất bại.'});
         }
     };
     
@@ -59,10 +71,59 @@ const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ 
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4" onClick={onClose}>
             <div className="w-full max-w-2xl bg-stone-900/90 backdrop-blur-md border border-stone-700 rounded-lg shadow-2xl shadow-black/30" onClick={e => e.stopPropagation()}>
                 <div className="p-4 flex justify-between items-center border-b border-stone-700">
-                    <h2 className="text-xl font-bold text-amber-400">Cài Đặt Nội Dung</h2>
+                    <h2 className="text-xl font-bold text-amber-400">Cài Đặt</h2>
                     <button onClick={onClose} className="text-stone-400 hover:text-white p-1 rounded-full hover:bg-white/10"><XMarkIcon className="w-6 h-6"/></button>
                 </div>
-                <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                <div className="p-6 space-y-8 max-h-[80vh] overflow-y-auto">
+                     {/* API Key Section */}
+                    <div>
+                        <h3 className="text-lg font-semibold text-amber-500 mb-3">Quản lý API Key</h3>
+                        <p className="text-sm text-stone-400 mb-4">Bạn có thể sử dụng API Key mặc định của trò chơi hoặc cung cấp API Key Gemini của riêng bạn.</p>
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-3 p-3 rounded-lg border border-stone-700 bg-black/20 cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-900/20 transition-all">
+                                <input
+                                    type="radio"
+                                    name="apiKeyMode"
+                                    value="default"
+                                    checked={apiKeyMode === 'default'}
+                                    onChange={() => setApiKeyMode('default')}
+                                    className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <span className="font-semibold text-stone-200">Sử dụng API Key Mặc Định</span>
+                                    <p className="text-xs text-stone-400">Sử dụng khóa do nhà phát triển cung cấp. Có thể có giới hạn sử dụng.</p>
+                                </div>
+                            </label>
+                             <label className="flex flex-col items-start gap-3 p-3 rounded-lg border border-stone-700 bg-black/20 cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-900/20 transition-all">
+                                <div className="flex items-center gap-3 w-full">
+                                    <input
+                                        type="radio"
+                                        name="apiKeyMode"
+                                        value="personal"
+                                        checked={apiKeyMode === 'personal'}
+                                        onChange={() => setApiKeyMode('personal')}
+                                        className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500"
+                                    />
+                                     <div>
+                                        <span className="font-semibold text-stone-200">Sử dụng API Key Cá Nhân</span>
+                                        <p className="text-xs text-stone-400">Nhập API Key Gemini của riêng bạn để không bị giới hạn.</p>
+                                    </div>
+                                </div>
+                                {apiKeyMode === 'personal' && (
+                                     <input
+                                        type="password"
+                                        value={personalApiKey}
+                                        onChange={(e) => setPersonalApiKey(e.target.value)}
+                                        placeholder="Dán API Key của bạn vào đây"
+                                        className="ml-7 w-[calc(100%-28px)] bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm focus:ring-amber-500 focus:border-amber-500 transition"
+                                    />
+                                )}
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-stone-700"></div>
+
                     {/* Mature Content Section */}
                     <div>
                         <h3 className="text-lg font-semibold text-amber-500 mb-3">Nội dung Người lớn (18+)</h3>
@@ -293,8 +354,20 @@ const App: React.FC = () => {
   }, [settingsVersion]);
 
 
+  const setupAi = () => {
+    const mode = localStorage.getItem('dl_api_key_mode') || 'default';
+    let keyToUse = process.env.API_KEY as string;
+
+    if (mode === 'personal') {
+        const personalKey = localStorage.getItem('dl_personal_api_key');
+        keyToUse = personalKey || ''; // Use personal key, or empty string if not set
+    }
+    
+    initializeGemini(keyToUse);
+  };
+
   useEffect(() => {
-    // Service initializes itself, so no need for explicit calls here.
+    setupAi(); // Initialize AI on first load
     try {
         const saved = localStorage.getItem('dl_saved_games');
         if (saved) {
@@ -381,6 +454,7 @@ const App: React.FC = () => {
   };
 
   const handleSettingsSaved = () => {
+    setupAi(); // Re-initialize AI with new settings from localStorage
     setSettingsVersion(v => v + 1);
   };
 
