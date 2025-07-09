@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Character } from './types';
 import GameScreen from './GameScreen';
@@ -8,7 +9,6 @@ import GlobeAltIcon from './components/icons/GlobeAltIcon';
 import ClipboardIcon from './components/icons/ClipboardIcon';
 import XMarkIcon from './components/icons/XMarkIcon';
 import { Cog6ToothIcon } from './components/icons/Cog6ToothIcon';
-import { getApiSettings, updateApiSettings, ApiSettings } from './services/geminiService';
 import { MATURE_CONTENT_OPTIONS } from './data/matureContent';
 import DocumentArrowDownIcon from './components/icons/DocumentArrowDownIcon';
 import TrashIcon from './components/icons/TrashIcon';
@@ -16,17 +16,10 @@ import TrashIcon from './components/icons/TrashIcon';
 
 // --- HELPER COMPONENTS ---
 const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ onClose, onSave }) => {
-    const [apiSource, setApiSource] = useState<'system' | 'personal'>('system');
-    const [personalKeys, setPersonalKeys] = useState<string[]>(['']);
-    const [status, setStatus] = useState<{type: 'idle' | 'success' | 'error', message: string}>({type: 'idle', message: ''});
+    const [status, setStatus] = useState<{type: 'idle' | 'success', message: string}>({type: 'idle', message: ''});
     const [selectedMatureIds, setSelectedMatureIds] = useState<string[]>([]);
 
     useEffect(() => {
-        const currentSettings = getApiSettings();
-        setApiSource(currentSettings.source);
-        // Ensure there's always at least one input box if personal keys are selected but empty
-        setPersonalKeys(currentSettings.keys.length > 0 ? currentSettings.keys : ['']);
-
         try {
             const savedMatureSettings = localStorage.getItem('dl_mature_settings');
             if (savedMatureSettings) {
@@ -37,25 +30,6 @@ const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ 
         }
     }, []);
     
-    const handlePersonalKeyChange = (index: number, value: string) => {
-        const newKeys = [...personalKeys];
-        newKeys[index] = value;
-        setPersonalKeys(newKeys);
-    };
-
-    const addPersonalKey = () => {
-        setPersonalKeys([...personalKeys, '']);
-    };
-
-    const removePersonalKey = (index: number) => {
-        if (personalKeys.length <= 1) {
-            setPersonalKeys(['']); // Don't remove the last one, just clear it
-            return;
-        }
-        const newKeys = personalKeys.filter((_, i) => i !== index);
-        setPersonalKeys(newKeys);
-    };
-
     const handleMatureChange = (id: string, checked: boolean) => {
         setSelectedMatureIds(prev => {
             if (checked) {
@@ -67,91 +41,28 @@ const SettingsModal: React.FC<{ onClose: () => void, onSave: () => void }> = ({ 
     };
 
     const handleSave = () => {
-        // Save mature settings first
+        // Save mature settings
         try {
             localStorage.setItem('dl_mature_settings', JSON.stringify(selectedMatureIds));
-        } catch(e) {
-            console.error("Failed to save mature settings to localStorage", e);
-            setStatus({type: 'error', message: 'Lưu cài đặt nội dung thất bại.'});
-            return;
-        }
-
-        // Then save API settings
-        const settingsToSave: ApiSettings = {
-            source: apiSource,
-            keys: personalKeys.map(k => k.trim()).filter(k => k !== '') // Clean up keys before saving
-        };
-        
-        const result = updateApiSettings(settingsToSave);
-
-        if (result.success) {
-            setStatus({type: 'success', message: 'Tất cả cài đặt đã được lưu và áp dụng!'});
+            setStatus({type: 'success', message: 'Cài đặt nội dung đã được lưu!'});
             onSave(); // Notify parent component that settings have changed
             setTimeout(() => {
                 setStatus({type: 'idle', message: ''});
             }, 2000);
-        } else {
-            setStatus({type: 'error', message: result.error || 'Lưu cài đặt API thất bại.'});
+        } catch(e) {
+            console.error("Failed to save mature settings to localStorage", e);
+             setStatus({type: 'idle', message: 'Lưu cài đặt thất bại.'});
         }
     };
     
-    const RadioOption = ({ value, label, current, onChange }: {value: 'system' | 'personal', label: string, current: string, onChange: (val: 'system' | 'personal') => void}) => (
-      <label className={`block p-4 border-2 rounded-lg cursor-pointer transition-colors ${current === value ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:bg-stone-800/50'}`}>
-        <input type="radio" name="api-source" value={value} checked={current === value} onChange={() => onChange(value)} className="hidden" />
-        <span className="font-semibold text-stone-200">{label}</span>
-      </label>
-    );
-
     return (
         <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4" onClick={onClose}>
             <div className="w-full max-w-2xl bg-stone-900/90 backdrop-blur-md border border-stone-700 rounded-lg shadow-2xl shadow-black/30" onClick={e => e.stopPropagation()}>
                 <div className="p-4 flex justify-between items-center border-b border-stone-700">
-                    <h2 className="text-xl font-bold text-amber-400">Thiết Lập API Gemini</h2>
+                    <h2 className="text-xl font-bold text-amber-400">Cài Đặt Nội Dung</h2>
                     <button onClick={onClose} className="text-stone-400 hover:text-white p-1 rounded-full hover:bg-white/10"><XMarkIcon className="w-6 h-6"/></button>
                 </div>
                 <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-                    {/* API Key Section */}
-                    <div>
-                        <h3 className="text-lg font-semibold text-amber-500 mb-3">Nguồn API Key Gemini</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <RadioOption value="system" label="Sử dụng API Key của Hệ Thống (Mặc định)" current={apiSource} onChange={setApiSource} />
-                            <RadioOption value="personal" label="Sử dụng API Key Cá Nhân" current={apiSource} onChange={setApiSource} />
-                        </div>
-
-                        {apiSource === 'personal' && (
-                            <div className="mt-6 pl-2 border-l-4 border-amber-800/50">
-                                <div className="ml-4">
-                                    <h4 className="text-md font-semibold text-amber-400 mb-2">Khóa API Gemini Cá Nhân</h4>
-                                    <p className="text-xs text-stone-500 mb-4">
-                                        Hỗ trợ xoay tua nhiều key để tăng giới hạn sử dụng.
-                                        Bạn có thể lấy key từ <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">Google AI Studio</a>.
-                                    </p>
-                                    <div className="space-y-3">
-                                        {personalKeys.map((key, index) => (
-                                            <div key={index} className="flex items-center gap-2">
-                                                <input
-                                                    type="password"
-                                                    value={key}
-                                                    onChange={(e) => handlePersonalKeyChange(index, e.target.value)}
-                                                    placeholder={`Dán API Key #${index + 1} vào đây`}
-                                                    className="flex-grow bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition"
-                                                />
-                                                <button onClick={() => removePersonalKey(index)} className="p-2 bg-red-800/70 hover:bg-red-700 rounded-md text-white">
-                                                    <XMarkIcon className="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={addPersonalKey} className="mt-4 px-3 py-1.5 text-sm bg-stone-700 hover:bg-stone-600 rounded-md text-amber-300 transition">
-                                        + Thêm API Key
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="border-t border-stone-700"></div>
-
                     {/* Mature Content Section */}
                     <div>
                         <h3 className="text-lg font-semibold text-amber-500 mb-3">Nội dung Người lớn (18+)</h3>

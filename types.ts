@@ -133,6 +133,12 @@ export interface SoulRing {
   story: string;
 }
 
+export type TimeOfDay = 'Sáng' | 'Trưa' | 'Chiều' | 'Tối' | 'Đêm Khuya';
+export interface GameTime {
+    day: number;
+    timeOfDay: TimeOfDay;
+}
+
 
 export interface Character {
   name: string;
@@ -169,6 +175,7 @@ export interface Character {
   equipment: Record<EquipmentSlot, Item | null>;
   skills: Skill[];
   soulRings: SoulRing[];
+  time: GameTime;
 }
 
 export interface Choice {

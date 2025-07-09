@@ -22,7 +22,7 @@ interface GameHubProps {
   onUpdateCharacter: (character: Character) => void;
 }
 
-type HubTab = 'character' | 'equipment' | 'inventory' | 'alchemy' | 'soul_ring_book';
+type HubTab = 'character' | 'equipment' | 'inventory' | 'alchemy' | 'soul_ring_book' | 'beast_skills';
 
 // --- SUB-PANELS (Defined within the same file for simplicity) ---
 
@@ -669,28 +669,61 @@ const SoulRingBookPanel: React.FC<{ character: Character }> = ({ character }) =>
 };
 // #endregion Soul Ring Book Panel
 
+// #region Beast Skills Panel
+const BeastSkillsPanel: React.FC<{ character: Character }> = ({ character }) => {
+    return (
+        <div className="h-full flex flex-col p-6 overflow-y-auto">
+            <h3 className="text-2xl font-bold text-violet-300 mb-6">Bản Mệnh Hồn Kỹ</h3>
+            <div className="space-y-4">
+                {character.skills && character.skills.length > 0 ? (
+                    character.skills.map((skill, index) => (
+                        <div key={index} className="bg-slate-900/50 p-4 rounded-lg border-l-4 border-yellow-500">
+                            <h4 className="font-bold text-lg text-yellow-300">{skill.name}</h4>
+                            <div className="flex gap-4 text-xs text-slate-400 mt-1">
+                                <span>Mana: {skill.manaCost}</span>
+                                <span>Hồi chiêu: {skill.cooldown} lượt</span>
+                            </div>
+                            <p className="text-sm text-slate-300 mt-2">{skill.description}</p>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center p-8 bg-slate-900/50 rounded-lg">
+                        <p className="text-slate-400 italic">Hồn thú này chưa thức tỉnh bất kỳ kỹ năng bẩm sinh nào.</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+// #endregion Beast Skills Panel
+
 
 // --- MAIN HUB COMPONENT ---
-const hubTabs: { id: HubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'character', label: 'Thông Tin', icon: UserIcon },
-  { id: 'equipment', label: 'Trang Bị', icon: HammerIcon },
-  { id: 'inventory', label: 'Balo Đồ', icon: BriefcaseIcon },
-  { id: 'alchemy', label: 'Luyện Đan', icon: FireIcon },
-  { id: 'soul_ring_book', label: 'Hồn Hoàn Thư', icon: BrainIcon },
-];
-
 const GameHub: React.FC<GameHubProps> = ({ character, onClose, onUpdateCharacter }) => {
-  const [activeTab, setActiveTab] = useState<HubTab>(hubTabs[0].id);
+  const isSoulBeast = character.race?.id === 'soul_beast' || character.race?.id === 'ancient_beast';
+
+  const hubTabsConfig = {
+    character: { id: 'character', label: 'Thông Tin', icon: UserIcon },
+    equipment: { id: 'equipment', label: 'Trang Bị', icon: HammerIcon },
+    inventory: { id: 'inventory', label: 'Balo Đồ', icon: BriefcaseIcon },
+    alchemy: { id: 'alchemy', label: 'Luyện Đan', icon: FireIcon },
+    soul_ring_book: { id: 'soul_ring_book', label: 'Hồn Hoàn Thư', icon: BrainIcon },
+    beast_skills: { id: 'beast_skills', label: 'Bản Mệnh Kỹ', icon: BrainIcon },
+  };
+
+  const hubTabs = [
+    hubTabsConfig.character,
+    hubTabsConfig.equipment,
+    hubTabsConfig.inventory,
+    hubTabsConfig.alchemy,
+    isSoulBeast ? hubTabsConfig.beast_skills : hubTabsConfig.soul_ring_book,
+  ];
+  
+  const [activeTab, setActiveTab] = useState<HubTab>(hubTabs[0].id as HubTab);
+
 
   const getActiveTabInfo = () => {
-    switch(activeTab) {
-        case 'character': return {icon: ClipboardIcon, label: 'Bảng Thông Tin'};
-        case 'equipment': return {icon: HammerIcon, label: 'Trang Bị & Công Pháp'};
-        case 'inventory': return {icon: BriefcaseIcon, label: 'Balo Đồ'};
-        case 'alchemy': return {icon: FireIcon, label: 'Luyện Đan & Chế Tạo'};
-        case 'soul_ring_book': return {icon: BrainIcon, label: 'Hồn Hoàn Thư'};
-        default: return {icon: DocumentTextIcon, label: 'Bảng Điều Khiển'};
-    }
+    return hubTabs.find(t => t.id === activeTab) || {icon: DocumentTextIcon, label: 'Bảng Điều Khiển'};
   }
   
   const ActiveTabInfo = getActiveTabInfo();
@@ -702,6 +735,7 @@ const GameHub: React.FC<GameHubProps> = ({ character, onClose, onUpdateCharacter
       case 'inventory': return <InventoryPanel character={character} onUpdateCharacter={onUpdateCharacter} />;
       case 'alchemy': return <AlchemyPanel character={character} onUpdateCharacter={onUpdateCharacter} />;
       case 'soul_ring_book': return <SoulRingBookPanel character={character} />;
+      case 'beast_skills': return <BeastSkillsPanel character={character} />;
       default: return null;
     }
   };
@@ -725,7 +759,7 @@ const GameHub: React.FC<GameHubProps> = ({ character, onClose, onUpdateCharacter
               {hubTabs.map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setActiveTab(tab.id as HubTab)}
                   className={`flex items-center gap-3 p-3 rounded-lg text-sm font-semibold transition-colors w-full text-left ${
                     activeTab === tab.id
                       ? 'bg-violet-600 text-white shadow-md'

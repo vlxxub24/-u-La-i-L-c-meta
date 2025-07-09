@@ -79,5 +79,5 @@ export const SOUL_RING_DATA: SoulRing[] = [
         sourceBeast: 'Thiên Mộng Băng Tằm',
         type: 'Côn Trùng',
         story: 'Hồn thú Bách Vạn Niên đầu tiên và duy nhất được ghi nhận. Nó không có khả năng tấn công trực tiếp nhưng sở hữu Tinh Thần Lực mạnh mẽ không gì sánh được, là một hồn hoàn phụ trợ trong mơ.'
-    },
+    }
 ];

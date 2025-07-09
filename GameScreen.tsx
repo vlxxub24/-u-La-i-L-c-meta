@@ -130,6 +130,12 @@ ${powerSystemPrompt}
 - Thể Chất: ${char.constitution?.name || 'Không'} (${char.constitution?.description || 'N/A'})
 - Cốt truyện: ${char.backstory || 'Không có'}
 - Chỉ số: Sức mạnh ${char.stats.strength}, Trí tuệ ${char.stats.intellect}, Thể chất ${char.stats.physique}, Nhanh nhẹn ${char.stats.agility}, Sức bền ${char.stats.stamina}, May mắn ${char.stats.luck}
+- HP hiện tại: ${char.hp.current}/${char.hp.max}
+- Mana hiện tại: ${char.mana.current}/${char.mana.max}
+- Tiền: ${char.money}
+- Kinh nghiệm: ${char.exp.current}/${char.exp.next}
+- Cảnh giới: ${char.realm.name} (Cấp ${char.realm.level})
+- Thời gian hiện tại: Ngày ${char.time.day}, Buổi ${char.time.timeOfDay}
 - Hệ thống cảnh giới của thế giới này:
 ${char.realmSystem || 'Chưa định nghĩa'}
 - Độ khó của trò chơi: ${char.difficulty}. (Hướng dẫn cho GM: Điều chỉnh các thử thách, kẻ địch và kết quả cho phù hợp. Ví dụ: 'Địa Ngục' nghĩa là các sự kiện cực kỳ khó khăn và nguy hiểm, trong khi 'Dễ' thì ngược lại.)
@@ -150,29 +156,56 @@ ${char.realmSystem || 'Chưa định nghĩa'}
       text: actionText,
     };
 
-    const characterAfterAction = {
+    // Update state to show user action immediately
+    const characterBeforeAI = {
       ...character,
       storyLog: [...(character.storyLog || []), newActionEntry],
     };
-    
-    setCharacter(characterAfterAction);
+    setCharacter(characterBeforeAI);
 
     try {
-        const characterPrompt = characterToPromptString(characterAfterAction);
-        const historyPrompt = `Hành động cuối cùng của người chơi: "${actionText}"`;
-        const fullPrompt = `Đây là nhân vật của tôi:\n${characterPrompt}\n\n${historyPrompt}\n\nHãy mô tả những gì xảy ra tiếp theo và đưa ra 3 lựa chọn mới.`;
-      
+        const characterPrompt = characterToPromptString(characterBeforeAI);
+
+        const HISTORY_LOOKBACK = 8;
+        const recentHistory = (characterBeforeAI.storyLog || []).slice(-HISTORY_LOOKBACK);
+        const storyContext = recentHistory.map(entry => {
+            if (entry.type === 'action') {
+                return `[HÀNH ĐỘNG CỦA NGƯỜI CHƠI]: ${entry.text}`;
+            } else {
+                return `[DIỄN BIẾN CỐT TRUYỆN]: ${entry.text}`;
+            }
+        }).join('\n\n');
+
+        const fullPrompt = `
+Dưới đây là thông tin về nhân vật và bối cảnh trò chơi.
+---
+[THÔNG TIN NHÂN VẬT]
+${characterPrompt}
+---
+[DIỄN BIẾN CÂU CHUYỆN GẦN ĐÂY (Theo thứ tự)]
+${storyContext}
+---
+Dựa vào TOÀN BỘ thông tin trên, hãy viết tiếp câu chuyện một cách logic và nhất quán, bắt đầu từ sau hành động cuối cùng của người chơi. Hãy đảm bảo duy trì tính liên tục của câu chuyện và các nhân vật. Nếu có sự thay đổi về trạng thái nhân vật, hãy bao gồm trường "characterUpdate".
+`.trim();
+
         const update = await geminiService.getGameUpdate(fullPrompt, matureInstructions);
+
+        // Merge character updates from AI if they exist
+        const characterAfterUpdate = {
+            ...characterBeforeAI,
+            ...(update.characterUpdate || {}),
+        };
         
         const newNarrativeEntry: StoryEntry = {
             id: Date.now() + 1,
             type: 'narrative',
             text: update.narrative,
         };
-
+        
+        // Add the new narrative to the log
         const finalUpdatedChar = {
-            ...characterAfterAction,
-            storyLog: [...characterAfterAction.storyLog, newNarrativeEntry],
+            ...characterAfterUpdate,
+            storyLog: [...characterAfterUpdate.storyLog, newNarrativeEntry],
         };
 
         setCharacter(finalUpdatedChar);
@@ -216,6 +249,11 @@ ${char.realmSystem || 'Chưa định nghĩa'}
           const initialPrompt = `Hãy bắt đầu trò chơi. Dựa vào thông tin nhân vật, hãy tạo ra bối cảnh mở đầu thật hấp dẫn và đưa ra các lựa chọn đầu tiên. \n\nNhân vật:\n${characterPrompt}`;
           const firstUpdate = await geminiService.getGameUpdate(initialPrompt, matureInstructions);
           
+          const characterAfterUpdate = {
+              ...character,
+              ...(firstUpdate.characterUpdate || {}),
+          };
+
           const firstNarrativeEntry: StoryEntry = {
               id: Date.now(),
               type: 'narrative',
@@ -223,7 +261,7 @@ ${char.realmSystem || 'Chưa định nghĩa'}
           };
           
           const updatedCharacter = {
-              ...character,
+              ...characterAfterUpdate,
               storyLog: [firstNarrativeEntry]
           };
 
@@ -256,11 +294,16 @@ ${char.realmSystem || 'Chưa định nghĩa'}
   
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
-        <header className="mb-6 flex justify-between items-center">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-100">{character.adventureTitle || `Hành trình của ${character.name}`}</h1>
-             <button onClick={() => setActiveModal('exitConfirmation')} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 rounded-lg text-sm text-slate-300 transition-all duration-200">
-                <ArrowLeftOnRectangleIcon className="w-5 h-5"/> Về Menu
-             </button>
+        <header className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+                <h1 className="text-3xl sm:text-4xl font-bold text-slate-100">{character.adventureTitle || `Hành trình của ${character.name}`}</h1>
+                 <button onClick={() => setActiveModal('exitConfirmation')} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 rounded-lg text-sm text-slate-300 transition-all duration-200">
+                    <ArrowLeftOnRectangleIcon className="w-5 h-5"/> Về Menu
+                 </button>
+            </div>
+            <div className="text-amber-300 text-sm font-semibold bg-black/20 px-3 py-1 rounded-full inline-block border border-amber-800/50">
+                <span>Ngày {character.time.day} - {character.time.timeOfDay}</span>
+            </div>
         </header>
         
         <main className="space-y-6">

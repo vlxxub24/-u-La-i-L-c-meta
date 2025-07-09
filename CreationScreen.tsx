@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Character, Gender, MartialSoul, Origin, CharacterStats, InnateTalent, Constitution, Race, Species, Difficulty, DIFFICULTIES, ItemCategory, NPC, Quest, SoulRing } from './types';
+import { Character, Gender, MartialSoul, Origin, CharacterStats, InnateTalent, Constitution, Race, Species, Difficulty, DIFFICULTIES, ItemCategory, NPC, Quest, SoulRing, Skill } from './types';
 import { geminiService } from './services/geminiService';
 import Stepper from './components/Stepper';
 import SparklesIcon from './components/icons/SparklesIcon';
@@ -74,8 +74,13 @@ const RACES: Race[] = [
 const ORIGINS: Origin[] = [
   { id: 'shrek', name: 'Sử Lai Khắc Học Viện', description: 'Chỉ thu nhận quái vật. Kỹ năng cơ bản vững chắc.' },
   { id: 'qblt', name: 'Thất Bảo Lưu Ly Tông', description: 'Giàu có bậc nhất, khởi đầu với nhiều tài nguyên.' },
+  { id: 'hao_thien', name: 'Hạo Thiên Tông', description: 'Đệ nhất tông môn trên đại lục. Nổi tiếng với Võ Hồn Hạo Thiên Chùy mạnh nhất.' },
+  { id: 'whdq', name: 'Võ Hồn Đế Quốc', description: 'Thế lực bá chủ, thống trị đại lục. Bắt đầu với sự công nhận và tài nguyên dồi dào.' },
+  { id: 'lam_dien', name: 'Lam Điện Bá Vương Long Gia Tộc', description: 'Gia tộc sở hữu Võ Hồn rồng tấn công mạnh nhất. Thiên phú về nguyên tố Lôi.' },
+  { id: 'thanh_long', name: 'Thánh Long Tông', description: 'Tông môn chuyên về các Võ Hồn loài rồng mạnh mẽ. Có kỹ năng chiến đấu bẩm sinh.' },
+  { id: 'hai_than', name: 'Hải Thần Đảo', description: 'Vùng đất thiêng của Hải Thần, được biển cả ưu ái. Có khả năng thích ứng với môi trường nước.' },
+  { id: 'sat_luc', name: 'Sát Lục Chi Đô', description: 'Vùng đất của tội ác và chém giết. Sống sót ở đây mang lại Sát Thần Lĩnh Vực.' },
   { id: 'sm', name: 'Tinh Đấu Đại Sâm Lâm', description: 'Gần gũi với thiên nhiên, dễ dàng thu phục Hồn Thú.' },
-  { id: 'vhd', name: 'Võ Hồn Điện', description: 'Thế lực bá chủ. Bắt đầu với một bí kíp đặc biệt.' },
   { id: 'tan_tu', name: 'Tán Tu', description: 'Tự do tự tại, không ràng buộc, tiềm năng vô hạn.' },
 ];
 
@@ -138,6 +143,7 @@ const initialCharacter: Character = {
   currentStatus: [],
   npcs: [],
   activeQuests: [],
+  time: { day: 1, timeOfDay: 'Sáng' },
 };
 
 // --- HELPER COMPONENTS ---
@@ -250,12 +256,12 @@ ${powerSystemPrompt}
       // Determine starting level
       if (isBeast && finalChar.cultivationYears) {
           const years = finalChar.cultivationYears;
-          if (years >= 1000000) level = 99;
-          else if (years >= 100000) level = 95;
-          else if (years >= 10000) level = 65;
-          else if (years >= 1000) level = 35;
-          else if (years >= 100) level = 15;
-          else level = 5;
+          if (years >= 1000000) level = 95;
+          else if (years >= 100000) level = 91;
+          else if (years >= 10000) level = 51;
+          else if (years >= 1000) level = 31;
+          else if (years >= 100) level = 11;
+          else level = 1;
       } else {
           if (finalChar.innateTalent?.name?.includes("Tiên Thiên Mãn Hồn Lực")) {
               level = 10;
@@ -288,51 +294,52 @@ ${powerSystemPrompt}
       finalChar.realm = realm;
       finalChar.exp = { current: 0, next: level * 100 + 100 };
       
-      // Add starting NPCs and Quests
-      if (!finalChar.npcs || finalChar.npcs.length === 0) {
-         if (finalChar.origin?.id === 'sm') { // Tinh Đấu Đại Sâm Lâm
-             finalChar.npcs = [{
-                id: 'daiming', name: 'Đại Minh', gender: Gender.MALE, avatar: '',
-                realm: 'Phong Hào Đấu La (20 vạn năm)', attitude: 'Thân thiện',
-                description: 'Thiên Thanh Ngưu Mãng, một trong hai vị vua của Tinh Đấu Đại Sâm Lâm. Tính tình nóng nảy nhưng trọng tình nghĩa.'
-             }];
-         } else { // Mặc định
-             finalChar.npcs = [{
-                id: 'jack', name: 'Già Làng Jack', gender: Gender.MALE, avatar: '',
-                realm: 'Phàm Nhân', attitude: 'Thân thiện',
-                description: 'Trưởng thôn của Thánh Hồn Thôn, người đã dẫn dắt vô số đứa trẻ thức tỉnh Võ Hồn.'
-             }];
-         }
-      }
+      // Add starting soul rings for humans or innate skills for beasts
+      if (isBeast && finalChar.cultivationYears) {
+          finalChar.soulRings = []; // Beasts don't have soul rings, they have skills.
+          const startingSkills: Skill[] = [];
+          const years = finalChar.cultivationYears;
 
-      if (!finalChar.activeQuests || finalChar.activeQuests.length === 0) {
-          finalChar.activeQuests = [{
-              id: 'main_quest_1',
-              title: 'Thức Tỉnh Võ Hồn',
-              description: 'Đã đến lúc vận mệnh được định đoạt. Hãy đến quảng trường của làng để tham gia lễ thức tỉnh Võ Hồn hàng năm.',
-              isCompleted: false
-          }];
-      }
+          startingSkills.push({
+              name: 'Dã Thú Chi Hống',
+              description: 'Phát ra một tiếng gầm mạnh mẽ, gây sợ hãi cho kẻ địch yếu hơn và tạm thời làm giảm sức tấn công của chúng.',
+              manaCost: 10,
+              cooldown: 2
+          });
 
-      // Add starting soul rings
-      if (!finalChar.soulRings || finalChar.soulRings.length === 0) {
-          finalChar.soulRings = [];
-          if (isBeast && finalChar.cultivationYears) {
-              const years = finalChar.cultivationYears;
-              if (years >= 100000) {
-                  const ring1 = SOUL_RING_DATA.find(r => r.id === 'blue_silver_emperor');
-                  const ring2 = SOUL_RING_DATA.find(r => r.id === 'ghost_tiger');
-                  if (ring1) finalChar.soulRings.push(ring1);
-                  if (ring2) finalChar.soulRings.push(ring2);
-              } else if (years >= 10000) {
-                  const ring1 = SOUL_RING_DATA.find(r => r.id === 'ghost_tiger');
-                  if (ring1) finalChar.soulRings.push(ring1);
-              }
-          } else if (level >= 10) {
-              const ring1 = SOUL_RING_DATA.find(r => r.id === 'mandala_snake');
-              if (ring1) finalChar.soulRings.push(ring1);
+          if (years >= 1000) {
+              startingSkills.push({
+                  name: 'Huyết Mạch Thức Tỉnh',
+                  description: 'Tạm thời kích phát huyết mạch, tăng cường toàn bộ chỉ số trong một khoảng thời gian ngắn.',
+                  manaCost: 30,
+                  cooldown: 5
+              });
           }
+
+          if (years >= 10000) {
+              startingSkills.push({
+                  name: 'Lĩnh Vực Sơ Khai',
+                  description: 'Tỏa ra một lĩnh vực yếu ớt dựa trên thuộc tính bản thân, gây áp chế lên kẻ địch trong phạm vi.',
+                  manaCost: 50,
+                  cooldown: 10
+              });
+          }
+
+          if (years >= 100000) {
+              startingSkills.push({
+                  name: 'Bản Mệnh Nhất Kích',
+                  description: 'Tụ tập toàn bộ Hồn Lực vào một đòn tấn công hủy diệt, tiêu hao lớn nhưng có sức mạnh kinh người.',
+                  manaCost: 100,
+                  cooldown: 15
+              });
+          }
+          finalChar.skills = [...(finalChar.skills || []), ...startingSkills];
+      } else if (!isBeast && level >= 10 && (!finalChar.soulRings || finalChar.soulRings.length === 0)) {
+          finalChar.soulRings = [];
+          const ring1 = SOUL_RING_DATA.find(r => r.id === 'mandala_snake');
+          if (ring1) finalChar.soulRings.push(ring1);
       }
+
 
       return finalChar;
   }
@@ -627,6 +634,14 @@ Trả về dưới dạng JSON với cấu trúc: { "adventureTitle": "string", 
         case 5: 
             if (!heavensIntervention && pointsUsed !== TOTAL_STAT_POINTS) return `Vui lòng phân phối chính xác ${TOTAL_STAT_POINTS} điểm. Hiện tại: ${pointsUsed}.`;
             return null;
+        case 6:
+            if (!character.backstory) return "Vui lòng viết hoặc gợi ý một cốt truyện.";
+            if (!character.worldDescription) return "Vui lòng viết hoặc gợi ý mô tả thế giới.";
+            if (!character.realmSystem) return "Vui lòng cung cấp hệ thống cảnh giới.";
+            return null;
+        case 7:
+            if (!character.difficulty) return "Vui lòng chọn độ khó.";
+            return null;
         default: 
             return null;
     }
@@ -666,96 +681,83 @@ Trả về dưới dạng JSON với cấu trúc: { "adventureTitle": "string", 
                                     setCharacter(prev => {
                                         const updated = { ...prev, race: newRace, species: null };
 
-                                        // Clear conflicting power system data when race type changes
                                         if (isNewRaceSoulBeast) {
-                                            updated.martialSoul = null; // Clear martial soul if new race is beast
+                                            updated.martialSoul = null;
                                         } else {
-                                            updated.cultivationYears = undefined; // Clear beast data if new race is not beast
+                                            updated.cultivationYears = undefined;
                                             updated.cultivationElements = [];
                                         }
-
                                         return updated;
                                     });
                                 }}
-                                    className={`p-3 border-2 rounded-lg text-center transition-all ${character.race?.id === r.id ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                                    <r.icon className="w-8 h-8 mx-auto mb-2 text-amber-400"/>
-                                    <h3 className="font-semibold text-sm text-stone-200">{r.name}</h3>
+                                    className={`flex flex-col items-center justify-center text-center p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 h-full
+                                    ${character.race?.id === r.id ? 'bg-amber-800/60 border-amber-500 shadow-lg' : 'bg-stone-800/60 border-stone-700 hover:bg-stone-700/80'}`}>
+                                    <r.icon className={`w-8 h-8 mb-2 transition-transform ${character.race?.id === r.id ? 'scale-110' : ''}`} />
+                                    <span className="font-semibold text-sm">{r.name}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
+
                     {character.race && (
-                         <div>
-                            <p className="text-sm text-stone-400 italic mb-4">{character.race.description}</p>
-                            <label htmlFor="species-select" className="block text-sm font-medium text-stone-300 mb-2">Giống Loài</label>
-                            <div className="flex gap-2 items-stretch">
-                                <select id="species-select"
-                                    value={character.species?.id || ''}
-                                    onChange={(e) => {
-                                        const selectedId = e.target.value;
-                                        if (selectedId === 'custom') {
-                                            updateCharacter('species', {id: 'custom', name: '', description: '', isCustom: true});
-                                        } else {
-                                            const selectedSpecies = character.race?.species.find(s => s.id === selectedId);
-                                            updateCharacter('species', selectedSpecies || null);
-                                        }
-                                    }}
-                                    className="flex-grow w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition">
-                                    <option value="" disabled>-- Chọn một giống loài --</option>
-                                    {character.race.species.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    <option value="custom" className="font-bold text-amber-300">Tự Định Nghĩa...</option>
-                                </select>
-                                <AISuggestButton onClick={handleSpeciesRoll} isLoading={isLoading} text="Gieo Vận Mệnh"/>
-                            </div>
-                            {character.species?.isCustom && (
-                                <div className="mt-4 p-4 border-t-2 border-amber-800 bg-black/20 space-y-4 rounded-b-lg">
-                                    <label className="block text-sm font-medium text-stone-300">Tên Giống Loài Tự Định Nghĩa</label>
-                                    <input type="text" value={character.species.name}
-                                        onChange={e => updateCharacter('species', {...character.species, name: e.target.value})}
-                                        className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2" />
-                                    <label className="block text-sm font-medium text-stone-300">Mô tả</label>
-                                    <textarea value={character.species.description}
-                                        onChange={e => updateCharacter('species', {...character.species, description: e.target.value})}
-                                        rows={3} className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2"/>
-                                    <div className="mt-2">
-                                        <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('species')} isLoading={isLoading} />
+                        <div>
+                            <label className="block text-sm font-medium text-stone-300 mb-2">Giống Loài</label>
+                            <div className="space-y-3">
+                                {character.race.species.map(s => (
+                                    <div key={s.id} onClick={() => updateCharacter('species', s)}
+                                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${character.species?.id === s.id ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700 hover:bg-stone-700/60'}`}>
+                                        <h4 className="font-semibold text-blue-300">{s.name}</h4>
+                                        <p className="text-xs text-stone-400">{s.description}</p>
                                     </div>
+                                ))}
+                                 <div className={`p-3 border rounded-lg transition-colors ${character.species?.isCustom ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <input type="radio" id="custom-species" name="species-choice" checked={character.species?.isCustom === true} onChange={() => updateCharacter('species', { id: 'custom_ai', name: '', description: '', isCustom: true })} className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500" />
+                                        <label htmlFor="custom-species" className="font-semibold text-blue-300 cursor-pointer">Tự định nghĩa Giống Loài</label>
+                                    </div>
+                                    {character.species?.isCustom && (
+                                        <div className="mt-3 space-y-2 pl-7">
+                                            <input type="text" placeholder="Tên Giống Loài" value={character.species.name} onChange={e => updateCharacter('species', { ...character.species!, name: e.target.value })}
+                                                className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm" />
+                                            <textarea placeholder="Mô tả..." value={character.species.description} onChange={e => updateCharacter('species', { ...character.species!, description: e.target.value })}
+                                                className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm h-16 resize-none" />
+                                            <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('species')} isLoading={isLoading} text="Viết mô tả" className="text-xs py-1" />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            {character.species && !character.species.isCustom && <p className="text-sm text-stone-400 italic mt-2">{character.species.description}</p>}
+                            </div>
+                             <div className="text-right">
+                                <AISuggestButton onClick={handleSpeciesRoll} isLoading={isLoading} text="Gieo Quẻ Giống Loài"/>
+                             </div>
                         </div>
                     )}
                 </div>
             </>
         );
-      case 2: // Martial Soul or Cultivation
+      case 2: // Martial Soul / Cultivation
         if (isSoulBeastRace) {
             return (
-                <>
-                    <h2 className="text-2xl font-bold text-amber-300 mb-2">Con Đường Tu Luyện</h2>
-                    <p className="text-stone-400 mb-6">Nền tảng sức mạnh của Hồn Thú đến từ năm tháng và nguyên tố.</p>
+                 <>
+                    <h2 className="text-2xl font-bold text-amber-300 mb-6">Tu Luyện Hồn Thú</h2>
                     <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-stone-300 mb-2">Tu Vi Ban Đầu</label>
-                            <div className="grid md:grid-cols-3 gap-3">
-                                {CULTIVATION_YEARS.map(item => (
-                                    <button key={item.value} onClick={() => updateCharacter('cultivationYears', item.value)}
-                                        className={`p-3 border-2 rounded-lg text-center transition-all ${character.cultivationYears === item.value ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                                        <h3 className="font-semibold text-sm text-stone-200">{item.label}</h3>
-                                    </button>
-                                ))}
-                            </div>
+                         <div>
+                            <label className="block text-sm font-medium text-stone-300 mb-2">Tu vi ban đầu</label>
+                            <select value={character.cultivationYears || ''} onChange={e => updateCharacter('cultivationYears', Number(e.target.value))}
+                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition">
+                                <option value="" disabled>Chọn tu vi</option>
+                                {CULTIVATION_YEARS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </select>
                         </div>
                         <div>
-                             <label className="block text-sm font-medium text-stone-300 mb-2">Nguyên Tố Tu Luyện (chọn tối đa 3)</label>
-                             <div className="flex flex-wrap gap-2">
+                            <label className="block text-sm font-medium text-stone-300 mb-2">Nguyên Tố (Chọn tối đa 3)</label>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                                 {ELEMENTS.map(el => (
                                     <button key={el} onClick={() => handleElementToggle(el, true)}
-                                        className={`px-3 py-1 text-xs rounded-full border transition-all ${character.cultivationElements?.includes(el) ? 'bg-amber-400 border-amber-300 text-stone-900 font-semibold' : 'bg-stone-800 border-stone-700 hover:bg-stone-700'}`}>
+                                        className={`p-2 border rounded-md text-xs transition ${character.cultivationElements?.includes(el) ? 'bg-amber-800/60 border-amber-600 text-white' : 'bg-stone-800/60 border-stone-700 hover:bg-stone-700/80'}`}>
                                         {el}
                                     </button>
                                 ))}
-                             </div>
+                            </div>
                         </div>
                     </div>
                 </>
@@ -763,397 +765,271 @@ Trả về dưới dạng JSON với cấu trúc: { "adventureTitle": "string", 
         }
         return (
             <>
-                <h2 className="text-2xl font-bold text-amber-300 mb-2">Thức tỉnh Võ Hồn</h2>
-                <p className="text-stone-400 mb-6">Sức mạnh cốt lõi định hình con đường của bạn.</p>
-                <div className="grid md:grid-cols-2 gap-4">
-                    {MARTIAL_SOULS.map(soul => (
-                        <button key={soul.id} onClick={() => updateCharacter('martialSoul', soul)}
-                            className={`p-4 border-2 rounded-lg text-left transition-all ${character.martialSoul?.id === soul.id ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                            <h3 className="font-bold text-lg text-amber-400">{soul.name}</h3>
-                            <p className="text-sm text-amber-500 mb-2">{soul.category}</p>
-                            <p className="text-sm text-stone-400">{soul.description}</p>
-                        </button>
+                <h2 className="text-2xl font-bold text-amber-300 mb-6">Thức Tỉnh Võ Hồn</h2>
+                <div className="space-y-4">
+                    {MARTIAL_SOULS.map(s => (
+                        <div key={s.id} onClick={() => updateCharacter('martialSoul', s)}
+                            className={`p-3 border rounded-lg cursor-pointer transition-colors ${character.martialSoul?.id === s.id ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700 hover:bg-stone-700/60'}`}>
+                            <h4 className="font-semibold text-blue-300">{s.name}</h4>
+                            <p className="text-xs text-stone-400">{s.description}</p>
+                        </div>
                     ))}
-                </div>
-                <div className="my-4 flex items-center">
-                    <div className="flex-grow border-t border-stone-700"></div>
-                    <span className="flex-shrink mx-4 text-stone-500 text-sm">hoặc</span>
-                    <div className="flex-grow border-t border-stone-700"></div>
-                </div>
-                <button onClick={() => updateCharacter('martialSoul', {id: 'custom', name: '', description: '', category: 'Tự định nghĩa', isCustom: true, elements: []})}
-                    className={`w-full p-4 border-2 rounded-lg text-center transition-all ${character.martialSoul?.isCustom ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                    <h3 className="font-bold text-lg text-amber-400">Tự định nghĩa Võ Hồn</h3>
-                </button>
-                {character.martialSoul?.isCustom && (
-                    <div className="mt-4 p-4 border-t-2 border-amber-800 bg-black/20 space-y-4 rounded-b-lg">
-                        <div className="text-center mb-4 border-b border-stone-700 pb-4">
-                            <p className="text-sm text-stone-400 mb-2">Không có ý tưởng? Hãy để AI giúp bạn!</p>
-                            <AISuggestButton onClick={handleMartialSoulSuggestion} isLoading={isLoading} text="AI Gợi Ý Võ Hồn" className="px-4 py-2" />
+                    <div className={`p-3 border rounded-lg transition-colors ${character.martialSoul?.isCustom ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700'}`}>
+                        <div className="flex items-center gap-3">
+                            <input type="radio" id="custom-soul" name="soul-choice" checked={character.martialSoul?.isCustom === true} onChange={() => updateCharacter('martialSoul', { id: 'custom_ai', name: '', description: '', category: 'Tự định nghĩa', isCustom: true, elements: [] })} className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500" />
+                            <label htmlFor="custom-soul" className="font-semibold text-blue-300 cursor-pointer">Tự định nghĩa Võ Hồn</label>
                         </div>
-                        <div>
-                            <label htmlFor="custom-soul-name" className="block text-sm font-medium text-stone-300 mb-2">Tên Võ Hồn</label>
-                            <input type="text" id="custom-soul-name" value={character.martialSoul.name} onChange={(e) => handleCustomSoulChange('name', e.target.value)}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition"
-                                placeholder="Ví dụ: Băng Hồn Cốt Long"/>
-                        </div>
-                        <div>
-                            <label htmlFor="custom-soul-desc" className="block text-sm font-medium text-stone-300 mb-2">Mô tả Võ Hồn</label>
-                            <textarea
-                                id="custom-soul-desc"
-                                value={character.martialSoul.description}
-                                onChange={(e) => handleCustomSoulChange('description', e.target.value)}
-                                rows={3}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition"
-                                placeholder="Mô tả sức mạnh, hình dạng, và đặc tính của Võ Hồn."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-stone-300 mb-2">Nguyên Tố (chọn tối đa 3)</label>
-                             <div className="flex flex-wrap gap-2">
-                                {ELEMENTS.map(el => (
-                                    <button key={el} onClick={() => handleElementToggle(el, false)}
-                                        className={`px-3 py-1 text-xs rounded-full border transition-all ${character.martialSoul?.elements?.includes(el) ? 'bg-amber-400 border-amber-300 text-stone-900 font-semibold' : 'bg-stone-800 border-stone-700 hover:bg-stone-700'}`}>
-                                        {el}
-                                    </button>
-                                ))}
-                             </div>
-                        </div>
+                        {character.martialSoul?.isCustom && (
+                            <div className="mt-3 space-y-3 pl-7">
+                                <input type="text" placeholder="Tên Võ Hồn" value={character.martialSoul.name} onChange={e => handleCustomSoulChange('name', e.target.value)}
+                                    className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm" />
+                                <textarea placeholder="Mô tả Võ Hồn..." value={character.martialSoul.description} onChange={e => handleCustomSoulChange('description', e.target.value)}
+                                    className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm h-16 resize-none" />
+                                <div>
+                                    <label className="block text-xs font-medium text-stone-300 mb-1">Nguyên Tố (Chọn tối đa 3)</label>
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {ELEMENTS.map(el => (
+                                            <button key={el} onClick={() => handleElementToggle(el, false)}
+                                                className={`p-2 border rounded-md text-xs transition ${character.martialSoul?.elements?.includes(el) ? 'bg-amber-800/60 border-amber-600 text-white' : 'bg-stone-800/60 border-stone-700 hover:bg-stone-700/80'}`}>
+                                                {el}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+                <div className="text-right mt-4">
+                    <AISuggestButton onClick={handleMartialSoulSuggestion} isLoading={isLoading} text="Gieo Quẻ Võ Hồn"/>
+                </div>
             </>
         );
       case 3: // Origin
         return (
             <>
-                <h2 className="text-2xl font-bold text-amber-300 mb-2">Lựa chọn Xuất Thân</h2>
-                <p className="text-stone-400 mb-6">Nơi bạn bắt đầu sẽ ảnh hưởng đến con đường phía trước.</p>
-                 <div className="grid md:grid-cols-2 gap-4">
-                    {ORIGINS.map(origin => (
-                        <button key={origin.id} onClick={() => updateCharacter('origin', origin)}
-                            className={`p-4 border-2 rounded-lg text-left transition-all ${character.origin?.id === origin.id ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                            <h3 className="font-bold text-lg text-amber-400">{origin.name}</h3>
-                            <p className="text-sm text-stone-400">{origin.description}</p>
+                <h2 className="text-2xl font-bold text-amber-300 mb-6">Lựa Chọn Xuất Thân</h2>
+                <div className="space-y-3">
+                    {ORIGINS.map(o => (
+                         <div key={o.id} onClick={() => updateCharacter('origin', o)}
+                            className={`p-3 border rounded-lg cursor-pointer transition-colors ${character.origin?.id === o.id ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700 hover:bg-stone-700/60'}`}>
+                            <h4 className="font-semibold text-blue-300">{o.name}</h4>
+                            <p className="text-xs text-stone-400">{o.description}</p>
+                        </div>
+                    ))}
+                    <div className={`p-3 border rounded-lg transition-colors ${character.origin?.isCustom ? 'bg-blue-800/50 border-blue-600' : 'bg-stone-800/50 border-stone-700'}`}>
+                        <div className="flex items-center gap-3">
+                             <input type="radio" id="custom-origin" name="origin-choice" checked={character.origin?.isCustom === true} onChange={() => updateCharacter('origin', { id: 'custom_ai', name: '', description: '', isCustom: true })} className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500" />
+                            <label htmlFor="custom-origin" className="font-semibold text-blue-300 cursor-pointer">Tự định nghĩa Xuất Thân</label>
+                        </div>
+                        {character.origin?.isCustom && (
+                            <div className="mt-3 space-y-2 pl-7">
+                                <input type="text" placeholder="Tên Xuất Thân" value={character.origin.name} onChange={e => handleCustomOriginChange('name', e.target.value)}
+                                    className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm" />
+                                <textarea placeholder="Mô tả Xuất Thân..." value={character.origin.description} onChange={e => handleCustomOriginChange('description', e.target.value)}
+                                    className="w-full bg-stone-900 border border-stone-600 rounded-md px-3 py-1.5 text-stone-200 text-sm h-16 resize-none" />
+                                <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('origin')} isLoading={isLoading} text="Viết mô tả" className="text-xs py-1" />
+                            </div>
+                        )}
+                    </div>
+                </div>
+                 <div className="text-right mt-4">
+                    <AISuggestButton onClick={handleOriginSuggestion} isLoading={isLoading} text="Gieo Quẻ Xuất Thân"/>
+                </div>
+            </>
+        );
+      case 4: // Talent & Constitution
+        return (
+             <>
+                <h2 className="text-2xl font-bold text-amber-300 mb-6">Thiên Phú & Thể Chất</h2>
+                 <div className="flex justify-center mb-6">
+                    <div className="bg-stone-900 p-1 rounded-lg flex gap-1">
+                        <button onClick={() => setTalentConstitutionMode('roll')} className={`px-4 py-1.5 text-sm rounded-md transition ${talentConstitutionMode === 'roll' ? 'bg-amber-700 text-white' : 'text-stone-300'}`}>Gieo Quẻ</button>
+                        <button onClick={() => setTalentConstitutionMode('custom')} className={`px-4 py-1.5 text-sm rounded-md transition ${talentConstitutionMode === 'custom' ? 'bg-amber-700 text-white' : 'text-stone-300'}`}>Tùy Chỉnh</button>
+                    </div>
+                </div>
+                {talentConstitutionMode === 'roll' ? (
+                    <div className="text-center">
+                        <AISuggestButton onClick={handleTalentConstitutionRoll} isLoading={isLoading} text="Gieo Quẻ Vận Mệnh" className="px-6 py-3 text-base"/>
+                         <div className="mt-6 p-4 bg-black/20 rounded-lg space-y-4">
+                            <div>
+                                <h3 className="font-bold text-lg text-blue-300">Thiên Phú: {character.innateTalent?.name || 'Chưa có'}</h3>
+                                <p className="text-sm text-stone-400">{character.innateTalent?.description || 'Nhấn nút để gieo quẻ'}</p>
+                            </div>
+                             <div>
+                                <h3 className="font-bold text-lg text-green-300">Thể Chất: {character.constitution?.name || 'Chưa có'}</h3>
+                                <p className="text-sm text-stone-400">{character.constitution?.description || 'Nhấn nút để gieo quẻ'}</p>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-stone-300 mb-2">Thiên Phú</label>
+                            <input type="text" placeholder="Tên Thiên Phú (ví dụ: Tiên Thiên Mãn Hồn Lực)" value={character.innateTalent?.name || ''} onChange={e => updateCharacter('innateTalent', { ...(character.innateTalent || { name: '', description: '' }), name: e.target.value })}
+                                className="w-full bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-stone-200" />
+                            <textarea placeholder="Mô tả Thiên Phú..." value={character.innateTalent?.description || ''} onChange={e => updateCharacter('innateTalent', { ...(character.innateTalent || { name: '', description: '' }), description: e.target.value })}
+                                className="w-full mt-2 bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-stone-200 h-20 resize-none" />
+                             <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('talent')} isLoading={isLoading} text="Viết mô tả" className="text-xs py-1 mt-1" />
+                        </div>
+                         <div>
+                            <label className="block text-sm font-medium text-stone-300 mb-2">Thể Chất</label>
+                            <input type="text" placeholder="Tên Thể Chất (ví dụ: Bách Chiết Bất Nao)" value={character.constitution?.name || ''} onChange={e => updateCharacter('constitution', { ...(character.constitution || { name: '', description: '' }), name: e.target.value })}
+                                className="w-full bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-stone-200" />
+                            <textarea placeholder="Mô tả Thể Chất..." value={character.constitution?.description || ''} onChange={e => updateCharacter('constitution', { ...(character.constitution || { name: '', description: '' }), description: e.target.value })}
+                                className="w-full mt-2 bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-stone-200 h-20 resize-none" />
+                             <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('constitution')} isLoading={isLoading} text="Viết mô tả" className="text-xs py-1 mt-1" />
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+      case 5: // Stats
+        return (
+             <>
+                <h2 className="text-2xl font-bold text-amber-300 mb-2">Phân Bổ Tiềm Năng</h2>
+                <p className="text-center text-stone-400 text-sm mb-6">Bạn có <strong className={`font-bold ${pointsUsed > TOTAL_STAT_POINTS ? 'text-red-500' : 'text-green-400'}`}>{TOTAL_STAT_POINTS - pointsUsed}</strong> điểm để phân phối.</p>
+                <div className="space-y-4 max-w-md mx-auto">
+                    {Object.entries(STAT_LABELS).map(([key, label]) => (
+                        <div key={key} className="flex items-center justify-between">
+                            <label className="font-semibold text-stone-300 w-24">{label}</label>
+                             <div className="flex items-center gap-2">
+                                <button onClick={() => updateStats(key as keyof CharacterStats, character.stats[key as keyof CharacterStats] - 1)} className="px-3 py-1 bg-stone-700 rounded">-</button>
+                                <input type="number" value={character.stats[key as keyof CharacterStats]} 
+                                    onChange={(e) => updateStats(key as keyof CharacterStats, parseInt(e.target.value, 10))}
+                                    className="w-16 bg-stone-900 border border-stone-600 rounded-md p-2 text-center text-white"
+                                />
+                                <button onClick={() => updateStats(key as keyof CharacterStats, character.stats[key as keyof CharacterStats] + 1)} className="px-3 py-1 bg-stone-700 rounded">+</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-6 text-center">
+                    <label className="flex items-center justify-center gap-2 text-sm text-yellow-400 cursor-pointer">
+                        <input type="checkbox" checked={heavensIntervention} onChange={e => setHeavensIntervention(e.target.checked)} className="h-4 w-4 text-amber-600 bg-stone-700 border-stone-600 focus:ring-amber-500 rounded"/>
+                        Thiên Đạo Can Thiệp (Bỏ qua giới hạn điểm)
+                    </label>
+                </div>
+            </>
+        );
+       case 6: // Backstory & World
+        return (
+            <>
+                <h2 className="text-2xl font-bold text-amber-300 mb-6">Hoàn Thiện Cốt Truyện & Thế Giới</h2>
+                <div className="space-y-6">
+                     <div>
+                        <label className="block text-sm font-medium text-stone-300 mb-2">Cốt truyện nhân vật</label>
+                        <textarea value={character.backstory} onChange={e => updateCharacter('backstory', e.target.value)}
+                            className="w-full h-32 bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition resize-none"
+                            placeholder="Viết một vài dòng về quá khứ của nhân vật..." />
+                         <div className="text-right mt-2">
+                             <AISuggestButton onClick={handleBackstorySuggestion} isLoading={isLoading} text="Gợi ý cốt truyện" />
+                         </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-stone-300 mb-2">Tổng quan thế giới</label>
+                        <textarea value={character.worldDescription} onChange={e => updateCharacter('worldDescription', e.target.value)}
+                            className="w-full h-24 bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition resize-none"
+                            placeholder="Mô tả về thế giới mà nhân vật sinh sống..." />
+                         <div className="text-right mt-2">
+                            <AISuggestButton onClick={handleWorldOverviewSuggestion} isLoading={isLoading} text="Gợi ý thế giới" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-stone-300 mb-2">Hệ thống cảnh giới tu luyện (mỗi cảnh giới một dòng)</label>
+                        <textarea value={character.realmSystem} onChange={e => updateCharacter('realmSystem', e.target.value)}
+                            className="w-full h-32 bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition resize-none"
+                            placeholder="Ví dụ: Hồn Sĩ, Hồn Sư, Đại Hồn Sư..." />
+                        <div className="text-right mt-2 flex justify-end gap-2">
+                             <AISuggestButton onClick={handleRealmSystemSuggestion} isLoading={isLoading} text="Gợi ý cảnh giới" />
+                             <AISuggestButton onClick={handleRealmSystemValidation} isLoading={isLoading} text="Kiểm tra & Sửa" />
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+      case 7: // Difficulty
+        return (
+            <>
+                <h2 className="text-2xl font-bold text-amber-300 mb-6">Chọn Độ Khó</h2>
+                <p className="text-center text-stone-400 mb-6">Độ khó sẽ ảnh hưởng đến thử thách, kẻ địch và kết quả của các lựa chọn trong câu chuyện.</p>
+                <div className="space-y-4 max-w-lg mx-auto">
+                    {DIFFICULTY_OPTIONS.map(opt => (
+                        <button key={opt.name} onClick={() => updateCharacter('difficulty', opt.name)}
+                            className={`w-full text-left p-4 border-2 rounded-lg transition-all duration-200
+                                ${character.difficulty === opt.name ? 'bg-amber-800/60 border-amber-500 shadow-lg' : 'bg-stone-800/60 border-stone-700 hover:bg-stone-700/80'}
+                            `}>
+                            <h3 className="font-bold text-lg text-amber-300">{opt.name}</h3>
+                            <p className="text-sm text-stone-300">{opt.description}</p>
                         </button>
                     ))}
                 </div>
-                 <div className="my-4 flex items-center">
-                    <div className="flex-grow border-t border-stone-700"></div>
-                    <span className="flex-shrink mx-4 text-stone-500 text-sm">hoặc</span>
-                    <div className="flex-grow border-t border-stone-700"></div>
-                </div>
-                <button onClick={() => updateCharacter('origin', {id: 'custom', name: '', description: '', isCustom: true})}
-                    className={`w-full p-4 border-2 rounded-lg text-center transition-all ${character.origin?.isCustom ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                    <h3 className="font-bold text-lg text-amber-400">Tự định nghĩa Xuất Thân</h3>
-                </button>
-                {character.origin?.isCustom && (
-                    <div className="mt-4 p-4 border-t-2 border-amber-800 bg-black/20 space-y-4 rounded-b-lg">
-                        <div className="text-center mb-4 border-b border-stone-700 pb-4">
-                             <AISuggestButton onClick={handleOriginSuggestion} isLoading={isLoading} text="AI Gợi Ý Xuất Thân" className="px-4 py-2" />
-                        </div>
-                        <div>
-                            <label htmlFor="custom-origin-name" className="block text-sm font-medium text-stone-300 mb-2">Tên Xuất Thân</label>
-                            <input type="text" id="custom-origin-name" value={character.origin.name} onChange={(e) => handleCustomOriginChange('name', e.target.value)}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition"
-                                placeholder="Ví dụ: Làng Thợ Rèn Thánh Hồn"/>
-                        </div>
-                        <div>
-                            <label htmlFor="custom-origin-desc" className="block text-sm font-medium text-stone-300 mb-2">Mô tả Xuất Thân</label>
-                            <textarea
-                                id="custom-origin-desc"
-                                value={character.origin.description}
-                                onChange={(e) => handleCustomOriginChange('description', e.target.value)}
-                                rows={3}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-200 focus:ring-amber-500 focus:border-amber-500 transition"
-                                placeholder="Mô tả về nơi bạn lớn lên, gia tộc, hoặc quá khứ..."
-                            />
-                             <div className="mt-2">
-                                <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('origin')} isLoading={isLoading} />
-                            </div>
-                        </div>
-                    </div>
-                )}
             </>
         );
-       case 4: // Talent and Constitution
-        return (
-            <>
-                <h2 className="text-2xl font-bold text-amber-300 mb-2">Thiên Phú & Thể Chất</h2>
-                <p className="text-stone-400 mb-6">Những món quà trời ban định hình tiềm năng của bạn.</p>
-                <div className="flex justify-center mb-6">
-                    <div className="p-1 bg-stone-900/80 border border-stone-700 rounded-lg flex gap-1">
-                        <button onClick={() => setTalentConstitutionMode('roll')} className={`px-4 py-1.5 text-sm rounded-md transition ${talentConstitutionMode === 'roll' ? 'bg-amber-700 text-white shadow' : 'text-stone-300 hover:bg-stone-700/50'}`}>
-                            Gieo Vận Mệnh
-                        </button>
-                        <button onClick={() => setTalentConstitutionMode('custom')} className={`px-4 py-1.5 text-sm rounded-md transition ${talentConstitutionMode === 'custom' ? 'bg-amber-700 text-white shadow' : 'text-stone-300 hover:bg-stone-700/50'}`}>
-                            Tự Định Nghĩa
-                        </button>
-                    </div>
-                </div>
-
-                {talentConstitutionMode === 'roll' ? (
-                     <div className="text-center">
-                         <button onClick={handleTalentConstitutionRoll} disabled={isLoading} className="px-6 py-3 bg-amber-800/40 text-amber-200 border border-amber-600 rounded-lg hover:bg-amber-800/60 transition flex items-center gap-3 mx-auto disabled:opacity-50">
-                             {isLoading ? <LoadingSpinner /> : <SparklesIcon className="w-5 h-5" />}
-                             Nhận Thiên Mệnh Gợi Ý
-                         </button>
-                         {character.innateTalent && character.constitution && (
-                            <div className="mt-6 space-y-4 text-left">
-                                <div className="p-4 bg-black/20 border border-stone-700 rounded-lg">
-                                    <h3 className="font-bold text-amber-400">Thiên Phú: {character.innateTalent.name}</h3>
-                                    <p className="text-sm text-stone-300 italic">{character.innateTalent.description}</p>
-                                </div>
-                                <div className="p-4 bg-black/20 border border-stone-700 rounded-lg">
-                                    <h3 className="font-bold text-amber-400">Thể Chất: {character.constitution.name}</h3>
-                                    <p className="text-sm text-stone-300 italic">{character.constitution.description}</p>
-                                </div>
-                            </div>
-                         )}
-                     </div>
-                ) : (
-                    <div className="space-y-6">
-                        <div className="p-4 bg-black/20 border border-stone-700 rounded-lg">
-                            <label className="block text-sm font-medium text-stone-300 mb-2">Tên Thiên Phú</label>
-                            <input type="text" value={character.innateTalent?.name || ''}
-                                onChange={e => updateCharacter('innateTalent', {...(character.innateTalent || { description: '' }), name: e.target.value})}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2" />
-                            <label className="block text-sm font-medium text-stone-300 mt-4 mb-2">Mô tả Thiên Phú</label>
-                            <textarea value={character.innateTalent?.description || ''}
-                                onChange={e => updateCharacter('innateTalent', {...(character.innateTalent || { name: '' }), description: e.target.value})}
-                                rows={3} className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2"/>
-                            <div className="mt-2">
-                                <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('talent')} isLoading={isLoading} />
-                            </div>
-                        </div>
-                        <div className="p-4 bg-black/20 border border-stone-700 rounded-lg">
-                             <label className="block text-sm font-medium text-stone-300 mb-2">Tên Thể Chất</label>
-                            <input type="text" value={character.constitution?.name || ''}
-                                onChange={e => updateCharacter('constitution', {...(character.constitution || { description: '' }), name: e.target.value})}
-                                className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2" />
-                            <label className="block text-sm font-medium text-stone-300 mt-4 mb-2">Mô tả Thể Chất</label>
-                            <textarea value={character.constitution?.description || ''}
-                                onChange={e => updateCharacter('constitution', {...(character.constitution || { name: '' }), description: e.target.value})}
-                                rows={3} className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2"/>
-                            <div className="mt-2">
-                                <AISuggestButton onClick={() => handleCustomDescriptionSuggestion('constitution')} isLoading={isLoading} />
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </>
-        );
-      case 5: // Potential
-        return (
-            <>
-                <h2 className="text-2xl font-bold text-amber-300 mb-2">Phân bố Tiềm Năng</h2>
-                <p className="text-stone-400 mb-6">Phân chia điểm tiềm năng để định hình sức mạnh ban đầu của bạn.</p>
-                <div className={`p-4 rounded-lg transition-all duration-500 ${heavensIntervention ? 'bg-amber-900/20 border border-amber-600' : 'bg-black/20 border border-stone-700'}`}>
-                   <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-amber-300">Tổng điểm còn lại: {heavensIntervention ? '∞' : TOTAL_STAT_POINTS - pointsUsed}</h3>
-                        <div className="flex items-center gap-2">
-                            <label htmlFor="heavens-toggle" className="text-sm text-stone-400">Thiên Đạo Can Thiệp</label>
-                            <input
-                                id="heavens-toggle"
-                                type="checkbox"
-                                checked={heavensIntervention}
-                                onChange={(e) => setHeavensIntervention(e.target.checked)}
-                                className="h-4 w-4 rounded bg-stone-700 border-stone-600 text-amber-600 focus:ring-amber-500"
-                            />
-                        </div>
-                   </div>
-                   <p className="text-xs text-stone-500 mt-1 mb-6">
-                       {heavensIntervention ? "Cảnh báo: Bạn đã phá vỡ quy tắc, hậu quả khó lường!" : `Bạn có ${TOTAL_STAT_POINTS} điểm để phân phối.`}
-                   </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                        {Object.entries(character.stats).map(([key, value]) => (
-                            <div key={key}>
-                                <label className="block text-sm font-medium text-stone-300 mb-1">{STAT_LABELS[key as keyof CharacterStats]}</label>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => updateStats(key as keyof CharacterStats, value - 1)} className="px-2 py-0.5 bg-stone-700 rounded">-</button>
-                                    <input type="number" value={value}
-                                        onChange={(e) => updateStats(key as keyof CharacterStats, parseInt(e.target.value, 10))}
-                                        className="w-16 text-center bg-stone-900 border border-stone-700 rounded-md p-1"
-                                    />
-                                    <button onClick={() => updateStats(key as keyof CharacterStats, value + 1)} className="px-2 py-0.5 bg-stone-700 rounded">+</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </>
-        );
-      case 6: // Overview
-         return (
-             <>
-                <h2 className="text-2xl font-bold text-amber-300 mb-2">Tổng Quan Nhân Vật</h2>
-                <p className="text-stone-400 mb-6">Xem lại và hoàn thiện linh hồn bạn vừa tạo ra.</p>
-                <div className="bg-black/20 p-4 border border-stone-700 rounded-lg space-y-4 text-sm">
-                    <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Tên:</strong> <span>{character.name || 'Chưa đặt tên'}</span></div>
-                    <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Giới tính:</strong> <span>{character.gender}</span></div>
-                    <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Chủng Tộc:</strong> <span>{character.race?.name || 'Chưa chọn'}</span></div>
-                    <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Giống Loài:</strong> <span>{character.species?.name || 'Chưa chọn'}</span></div>
-                    
-                    {isSoulBeastRace ? (
-                        <>
-                         <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Tu Vi:</strong> <span>{character.cultivationYears} năm</span></div>
-                         <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Nguyên Tố:</strong> <span>{character.cultivationElements?.join(', ') || 'Không'}</span></div>
-                        </>
-                    ) : (
-                        <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Võ Hồn:</strong> <span>{character.martialSoul?.name || 'Chưa chọn'}</span></div>
-                    )}
-                    <div className="flex flex-col sm:flex-row"><strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Xuất Thân:</strong> <span>{character.origin?.name || 'Chưa chọn'}</span></div>
-                    
-                    <div className="flex flex-col sm:flex-row sm:items-start">
-                        <strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Thiên Phú:</strong> 
-                        <div className="flex-grow">
-                           <p>{character.innateTalent?.name || 'Chưa có'}</p>
-                           {character.innateTalent && <p className="text-xs text-stone-400 italic">{character.innateTalent.description}</p>}
-                        </div>
-                    </div>
-                     <div className="flex flex-col sm:flex-row sm:items-start">
-                        <strong className="font-semibold text-amber-300 w-full sm:w-28 flex-shrink-0">Thể Chất:</strong> 
-                        <div className="flex-grow">
-                           <p>{character.constitution?.name || 'Chưa có'}</p>
-                           {character.constitution && <p className="text-xs text-stone-400 italic">{character.constitution.description}</p>}
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col">
-                        <strong className="font-semibold text-amber-300 mb-2 sm:mb-0">Cốt truyện:</strong>
-                        <div className="w-full">
-                          <textarea
-                              value={character.backstory}
-                              onChange={(e) => updateCharacter('backstory', e.target.value)}
-                              rows={4}
-                              className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-300 text-sm italic"
-                              placeholder="Thêm một vài dòng về quá khứ của bạn..."
-                          />
-                          <div className="mt-2">
-                            <AISuggestButton onClick={handleBackstorySuggestion} isLoading={isLoading} />
-                          </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <strong className="font-semibold text-amber-300">Chỉ số:</strong>
-                         <ul className="list-disc list-inside text-stone-400 pl-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-                             {Object.entries(character.stats).map(([key, value]) => (
-                                <li key={key}>{STAT_LABELS[key as keyof CharacterStats]}: {value}</li>
-                             ))}
-                        </ul>
-                    </div>
-                </div>
-
-                <div className="mt-6 bg-black/20 p-4 border border-stone-700 rounded-lg space-y-4">
-                    <h3 className="text-xl font-bold text-amber-300 mb-2">Xây Dựng Thế Giới</h3>
-                    {/* World Overview */}
-                    <div>
-                        <label className="block text-sm font-medium text-stone-300 mb-2">Khái Quát Thế Giới</label>
-                        <div className="p-3 bg-stone-900/70 border border-stone-700 rounded-md min-h-[60px] text-stone-300 text-sm italic whitespace-pre-wrap">
-                            {character.worldDescription || "Chưa có mô tả thế giới. Hãy để AI giúp bạn!"}
-                        </div>
-                        <div className="mt-2">
-                           <AISuggestButton onClick={handleWorldOverviewSuggestion} isLoading={isLoading} text="AI Tạo Thế Giới Quan"/>
-                        </div>
-                    </div>
-                     {/* Realm System */}
-                    <div>
-                        <label className="block text-sm font-medium text-stone-300 mb-2">Hệ Thống Cảnh Giới Tu Luyện</label>
-                        <textarea
-                            value={character.realmSystem}
-                            onChange={(e) => updateCharacter('realmSystem', e.target.value)}
-                            rows={6}
-                            className="w-full bg-stone-900/70 border border-stone-700 rounded-md px-3 py-2 text-stone-300 text-sm"
-                            placeholder="Nhập hệ thống cảnh giới, mỗi cảnh giới một dòng..."/>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            <AISuggestButton onClick={handleRealmSystemSuggestion} isLoading={isLoading} text="AI Gợi Ý"/>
-                            <AISuggestButton onClick={handleRealmSystemValidation} isLoading={isLoading} text="AI Kiểm Tra & Sửa Lỗi"/>
-                        </div>
-                    </div>
-                </div>
-            </>
-         );
-        case 7: // Difficulty
-            return (
-                <>
-                    <h2 className="text-2xl font-bold text-amber-300 mb-2">Chọn Độ Khó</h2>
-                    <p className="text-stone-400 mb-6">Mỗi lựa chọn sẽ định hình nên những thử thách bạn phải đối mặt.</p>
-                    <div className="grid md:grid-cols-2 gap-4">
-                        {DIFFICULTY_OPTIONS.map(opt => (
-                            <button key={opt.name} onClick={() => updateCharacter('difficulty', opt.name)}
-                                className={`p-4 border-2 rounded-lg text-left transition-all ${character.difficulty === opt.name ? 'border-amber-500 bg-amber-900/20' : 'border-stone-700 hover:border-amber-700/40 hover:bg-stone-800/50'}`}>
-                                <h3 className="font-bold text-lg text-amber-400">{opt.name}</h3>
-                                <p className="text-sm text-stone-400">{opt.description}</p>
-                            </button>
-                        ))}
-                    </div>
-                </>
-            );
       default:
-        return null;
+        return <div>Step {step} không hợp lệ</div>;
     }
   };
 
   const validationMessage = getValidationMessage();
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen py-8 px-4">
-      <div className="w-full max-w-4xl">
-        <div className="text-center mb-4">
-          <h1 className="text-4xl font-bold text-stone-100">Định Hình Số Phận</h1>
-          <p className="text-stone-400 mt-1">Tạo ra một linh hồn mới trong thế giới đầy rẫy bí ẩn.</p>
-        </div>
-        
-        <div className="mb-6 text-center">
-            <button 
-              onClick={handleDestinyRoll}
-              disabled={isLoading || isFinalizing}
-              className="px-6 py-3 bg-gradient-to-r from-amber-600 to-yellow-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 flex items-center gap-3 mx-auto disabled:opacity-60 disabled:cursor-wait"
-            >
-              {isLoading ? <LoadingSpinner /> : <SparklesIcon className="w-6 h-6"/>}
-              Thiên Mệnh An Bài (AI Tạo Nhanh)
-            </button>
-            <p className="text-xs text-stone-500 mt-2">Để AI tạo một nhân vật hoàn chỉnh cho bạn!</p>
-        </div>
+    <div className="p-4 sm:p-6 md:p-8 max-w-4xl mx-auto">
+        <div className="bg-slate-800/70 backdrop-blur-sm rounded-xl shadow-lg">
+            <header className="p-6 border-b border-slate-700/50">
+                <h1 className="text-3xl font-bold text-center text-amber-400">Tạo Nhân Vật</h1>
+                <p className="text-center text-slate-400 mt-2">Kiến tạo một huyền thoại cho riêng bạn.</p>
+                <div className="mt-6">
+                    <Stepper steps={STEPS} currentStep={step} />
+                </div>
+            </header>
 
-        <div className="mb-8">
-            <Stepper steps={STEPS} currentStep={step} />
-        </div>
+            <main className="p-6 min-h-[400px]">
+                {error && <div className="bg-red-900/70 border border-red-700 text-red-200 p-3 rounded-md mb-6 text-center">{error}</div>}
+                {renderStepContent()}
+            </main>
 
-        <div className="bg-stone-900/60 backdrop-blur-sm border border-stone-800 rounded-2xl p-6 md:p-8 min-h-[400px]">
-            {renderStepContent()}
-        </div>
-
-        {error && (
-            <div className="mt-4 w-full p-3 bg-red-900/70 border border-red-700 text-red-200 text-center rounded-lg">
-                <p><strong>Lỗi:</strong> {error}</p>
-            </div>
-        )}
-
-        <div className="mt-8 flex justify-between items-center">
-            <button onClick={step === 1 ? onBackToMenu : handleBack}
-              disabled={isFinalizing}
-              className="px-6 py-2 bg-stone-700/80 text-white rounded-md hover:bg-stone-600/80 transition disabled:opacity-50">
-              {step === 1 ? "Về Menu Chính" : "Quay Lại"}
-            </button>
-            <div className="flex flex-col items-end">
-                {step < STEPS.length ? (
-                     <button onClick={handleNext} disabled={!!validationMessage || isFinalizing}
-                        className="px-6 py-2 bg-amber-700 text-white font-bold rounded-md hover:bg-amber-600 transition disabled:bg-stone-600 disabled:cursor-not-allowed">
-                         Tiếp Theo
-                     </button>
-                ) : (
-                    <button onClick={handleFinishCreation}
-                        disabled={isFinalizing || !!getValidationMessage()}
-                        className="px-8 py-3 bg-green-700 text-white font-bold rounded-md hover:bg-green-600 transition flex items-center gap-2 disabled:bg-stone-600 disabled:cursor-wait">
-                         {isFinalizing ? <LoadingSpinner className="w-6 h-6 border-4" /> : 'Bắt Đầu Phiêu Lưu'}
+            <footer className="p-6 bg-black/30 border-t border-slate-700/50 rounded-b-xl">
+                 <div className="flex justify-between items-center">
+                    <button
+                        onClick={handleBack}
+                        disabled={step === 1}
+                        className="px-6 py-2 bg-slate-700 text-white font-bold rounded-md hover:bg-slate-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Quay Lại
                     </button>
-                )}
-                {validationMessage && step < STEPS.length && (
-                    <p className="text-xs text-red-400 mt-2 text-right">{validationMessage}</p>
-                )}
-            </div>
+                    
+                    <div className="flex-grow text-center px-4">
+                        {validationMessage && <p className="text-red-400 text-sm">{validationMessage}</p>}
+                    </div>
+
+                    {step < STEPS.length ? (
+                         <button
+                            onClick={handleNext}
+                            disabled={!!validationMessage}
+                            className="px-6 py-2 bg-amber-700 text-white font-bold rounded-md hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                         >
+                             Tiếp Theo
+                         </button>
+                    ) : (
+                         <button
+                            onClick={handleFinishCreation}
+                            disabled={isFinalizing || !!validationMessage}
+                            className="px-6 py-2 bg-green-700 text-white font-bold rounded-md hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-wait flex items-center gap-2"
+                         >
+                            {isFinalizing ? <LoadingSpinner /> : <SparklesIcon className="w-5 h-5" />}
+                            {isFinalizing ? 'Đang hoàn tất...' : 'Hoàn Tất'}
+                         </button>
+                    )}
+                </div>
+                <div className="mt-6 flex justify-between items-center">
+                    <button onClick={onBackToMenu} className="text-sm text-slate-400 hover:text-white transition">
+                        Về Menu Chính
+                    </button>
+                    <AISuggestButton onClick={handleDestinyRoll} isLoading={isLoading} text="Thiên Mệnh An Bài"/>
+                </div>
+            </footer>
         </div>
-      </div>
     </div>
   );
 };
